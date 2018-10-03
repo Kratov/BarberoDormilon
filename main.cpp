@@ -24,6 +24,8 @@ void initializeSimulation(
 	const int barberNumber, const int waitQueueNumber,  int & elapsedTime, 
 	int & nNodosEspera, int & nNodosBarbero);
 void pushNode(Node *& cabeza, Node *& fin, Node *& item, Node * nextTo);
+void copyList(Node *& cabezaOri, Node *& finOri, Node *& cabezaDest, Node *& finDest);
+void freeList(Node *& cabeza, Node *& fin);
 bool isNodeInList(Node * cabeza, Node * toSearch);
 Node * createNode(const int processTime, int nodeNumber);
 Node * getLesserTimeNode(Node * cabeza, Node * fin);
@@ -32,7 +34,7 @@ Node * popNode(Node *& cabeza, Node *& fin, Node * toPop);
 int mainMenu()
 {
 	int temp = -1;
-	printf("\n	BARBERO DORMILON\n	1. Numero maximo de barberos\n	2. Numero maximo de sillas de espera\n	3. Ingresar procesos en espera\n	4. Simular	\n	0. Salir\n	Seleccion: ");
+	printf("\n	BARBERO DORMILON\n	1. Numero maximo de barberos\n	2. Numero maximo de sillas de espera\n	3. Ingresar procesos en espera\n	4. Limpiar lista\n	5. Simular	\n	0. Salir\n	Seleccion: ");
 	cin >> temp;
 	if (cin.fail())
 	{
@@ -56,10 +58,10 @@ int pedirNumero(int minNumero)
 
 int main()
 {
-	Node * cabezaEspera, * finEspera, *cabezaBarbero, *finBarbero;
-	cabezaEspera = finEspera = cabezaBarbero = finBarbero = NULL;
-	int op, elapsedTime, nNodos, barberNumber, waitQueueNumber, nNodosBarbero;
-	elapsedTime = nNodos = barberNumber = nNodosBarbero = op = waitQueueNumber = 0;
+	Node * cabezaEspera, * finEspera, *cabezaBarbero, *finBarbero, *cabezaEsperaCopy, *finEsperaCopy;
+	cabezaEspera = finEspera = cabezaBarbero = finBarbero = cabezaEsperaCopy = finEsperaCopy = NULL;
+	int op, elapsedTime, nNodos, nNodosCopy, barberNumber, waitQueueNumber, nNodosBarbero;
+	elapsedTime = nNodos = nNodosCopy = barberNumber = nNodosBarbero = op = waitQueueNumber = 0;
 
 	do {
 		system("CLS");
@@ -86,8 +88,12 @@ int main()
 			barberNumber = pedirNumero(MIN_NUMBER);
 			break;
 		case 2: 
-			cout << "\n	Ingrese el numero maximo de sillas de espera. ";
-			waitQueueNumber = pedirNumero(MIN_NUMBER);
+			if (!cabezaEspera)
+			{
+				cout << "\n	Ingrese el numero maximo de sillas de espera. ";
+				waitQueueNumber = pedirNumero(MIN_NUMBER);
+			}else
+				cout << "\n	Debe limpiar la lista actual primero.\n ";
 			break;
 		case 3:
 		{
@@ -108,7 +114,13 @@ int main()
 		}
 		break;
 		case 4:
-			initializeSimulation(cabezaEspera, finEspera, cabezaBarbero, finBarbero ,barberNumber, waitQueueNumber, elapsedTime, nNodos, nNodosBarbero);
+			nNodos = 0;
+			freeList(cabezaEspera, finEspera);
+			break;
+		case 5:
+			freeList(cabezaEsperaCopy, finEsperaCopy);
+			copyList(cabezaEspera, finEspera, cabezaEsperaCopy, finEsperaCopy);
+			initializeSimulation(cabezaEsperaCopy, finEsperaCopy, cabezaBarbero, finBarbero ,barberNumber, waitQueueNumber, elapsedTime= 0, nNodosCopy = nNodos, nNodosBarbero);
 			break;
 		}
 		printf("\n");
@@ -163,21 +175,14 @@ void initializeSimulation(
 
 		{
 			Node * aux = cabezaBarbero;
-			Node * aBorrar = NULL;
-			bool continuar = true;
-
-			while (continuar && cabezaBarbero)
+			while (aux)
 			{
 				if (aux->bDelete)
 				{
-					aBorrar = aux;
-					aux = aux->prev;
-					popNode(cabezaBarbero, finBarbero, aBorrar);
+					popNode(cabezaBarbero, finBarbero, aux);
 					nNodosBarbero--;
 				}
-				if (aux == finBarbero)
-					continuar = !continuar;
-				aux = aux->next;
+ 				aux = aux->next;
 			}
 		}
 	}
@@ -185,8 +190,7 @@ void initializeSimulation(
 
 void showList(Node * cabeza, Node * fin, bool useNames) {
 	Node * aux = cabeza;
-	bool continuar = true;
-	while (continuar && cabeza)
+	while (aux)
 	{
 		if (useNames)
 			cout << "	" << "P" << aux->nodeArrival << "(";
@@ -197,8 +201,6 @@ void showList(Node * cabeza, Node * fin, bool useNames) {
 			cout << ")	";
 		else
 			cout << "	";
-		if (aux == fin)
-			continuar = false;
 		aux = aux->next;
 	}
 }
@@ -212,8 +214,7 @@ void burstNodeInBarberTime(Node * cabeza, Node * fin, int & elapsedTime)
 {
 	if (Node * lesser = getLesserTimeNode(cabeza, fin)) {
 		Node * aux = cabeza;
-		bool continuar = true;
-		while (continuar && aux)
+		while (aux)
 		{
 			elapsedTime += aux->processTime;
 			if (lesser->processTime >= aux->processTime)
@@ -222,10 +223,7 @@ void burstNodeInBarberTime(Node * cabeza, Node * fin, int & elapsedTime)
 				aux->bDelete = true;
 			}
 			else
-				aux->processTime -= lesser->processTime;
-
-			if (aux == fin)
-				continuar = false;
+				aux->processTime -= lesser->processTime;			
 			aux = aux->next;
 		}
 	}
@@ -243,25 +241,26 @@ void showWaitQueueNumber(int & waitQueueNumber)
 
 void pushNode(Node *& cabeza, Node *& fin, Node *& item, Node * nextTo = NULL)
 {
+
+	if (item)
+	{
+		item->next = NULL;
+		item->prev = NULL;
+	}
 	if (!cabeza) {
 		cabeza = item;
 		fin = item;
-		item->next = item;
-		item->prev = item;
 	}
-	else if(!nextTo || nextTo == fin) {
+	else if(!nextTo) {
 		item->next = cabeza;
+		cabeza->prev = item;
+		cabeza = item;	
+	}
+	else if (nextTo == fin)
+	{
+		item->prev = fin;
 		fin->next = item;
-		if (!nextTo)
-		{
-			cabeza->prev = item;
-			cabeza = item;
-		}
-		else if (nextTo == fin)
-		{
-			item->prev = fin;
-			fin = item;
-		}
+		fin = item;
 	}
 	else
 	{
@@ -289,13 +288,10 @@ Node * getLesserTimeNode(Node * cabeza, Node * fin) {
 	if (cabeza)
 	{
 		Node * aux = cabeza;
-		bool continuar = true;
-		while (continuar)
+		while (aux)
 		{
 			if ((aux->processTime < lesserNode->processTime))
 				lesserNode = aux;
-			if (aux == fin)
-				continuar = !continuar;
 			aux = aux->next;
 		}
 	}
@@ -307,20 +303,26 @@ Node * popNode(Node *& cabeza, Node *& fin, Node * toPop) {
 	{
 		if (isNodeInList(cabeza, toPop))
 		{
-			if (toPop->next == toPop && toPop->prev == toPop)
+			if (cabeza == fin)
 			{
 				cabeza = NULL;
 				fin = NULL;
 			}
-			else {
-				if (toPop == cabeza)
-					cabeza = toPop->next;
-				else if (toPop == fin)
-					fin = toPop->prev;
-				fin->next = cabeza;
-				cabeza->prev = fin;
+			else if (toPop == cabeza) {
+				cabeza = toPop->next;
+				cabeza->prev = NULL;
 			}
-			return toPop;
+			else if (toPop == fin) {
+				fin = toPop->prev;
+				fin->next = NULL;
+			}
+			else {
+				Node * sig = toPop->next;
+				Node * prev = toPop->prev;
+				prev->next = sig;
+				sig->prev = prev;
+			}
+			return toPop;	
 		}
 	}
 	return NULL;
@@ -334,4 +336,19 @@ bool isNodeInList(Node * cabeza, Node * toSearch) {
 		aux = aux->next;
 	}
 	return false;
+}
+
+void copyList(Node *& cabezaOri, Node *& finOri, Node *& cabezaDest, Node *& finDest) {
+	Node * aux = cabezaOri;
+	Node * nuevo = NULL;
+	while (aux) {
+		nuevo = createNode(aux->processTime, aux->nodeArrival);
+		pushNode(cabezaDest, finDest, nuevo, finDest);
+		aux = aux->next;
+	}
+}
+
+void freeList(Node *& cabeza, Node *& fin) {
+	while (cabeza)
+		delete popNode(cabeza, fin, cabeza);
 }
